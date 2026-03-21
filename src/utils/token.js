@@ -1,7 +1,9 @@
+// src/utils/token.js
 
+const crypto = require("crypto");
 
-import crypto from "crypto";
+const generateToken = () => {
+  return crypto.randomBytes(32).toString("hex");
+};
 
-export const generateToken = () =>
-  crypto.randomBytes(32).toString("hex");
-
+module.exports = { generateToken };
