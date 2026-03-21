@@ -1,0 +1,1 @@
+ALTER TABLE "members" ADD COLUMN "verification_token_expires_at" timestamp;
