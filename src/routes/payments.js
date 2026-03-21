@@ -173,7 +173,6 @@ router.post("/webhook", async (req, res) => {
     }
 
     const reference = event.data.reference;
-    const userEmail = event.data.customer.email;
     const fee_type = (event.data.metadata && event.data.metadata.fee_type) || "membership_registration";
 
     const [payment] = await db
@@ -211,7 +210,7 @@ router.post("/webhook", async (req, res) => {
       .set({ status: "success" })
       .where(eq(payments.reference, reference));
 
-    console.log(`✅ Webhook processed for ${reference} (${userEmail})`);
+    console.log(`✅ Webhook processed for ${reference}`);
     res.status(200).send("Webhook received");
   } catch (err) {
     console.error("Webhook processing error:", err);
