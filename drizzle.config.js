@@ -1,18 +1,18 @@
-import type { Config } from "drizzle-kit";
-import * as dotenv from "dotenv";
+// drizzle.config.js
+const dotenv = require("dotenv");
 
 dotenv.config();
 
-export default {
-  schema: "./src/db/schema.ts",
+module.exports = {
+  schema: "./src/db/schema.js", // ✅ changed from .ts → .js
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
     host: process.env.DB_HOST || "localhost",
-    port: Number(process.env.DB_PORT) || 5432,
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
     user: process.env.DB_USER || "aimsn_user",
     password: process.env.DB_PASSWORD || "aimsn_password",
     database: process.env.DB_NAME || "aimsn_db",
-    ssl: false, // 👈 THIS FIXES YOUR ERROR
+    ssl: false,
   },
-} satisfies Config;
+};
