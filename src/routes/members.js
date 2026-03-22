@@ -18,7 +18,7 @@ router.use((req, res, next) => {
   next();
 });
 
-// Determine frontend URL based on environment
+// Determine frontend URL dynamically
 const FRONTEND_URL =
   process.env.NODE_ENV === "production"
     ? "https://www.aimsn.com.ng"
@@ -33,22 +33,12 @@ router.post("/register", async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and password required",
-      });
+      return res.status(400).json({ success: false, message: "Email and password required" });
     }
 
-    const existing = await db
-      .select()
-      .from(members)
-      .where(eq(members.email, email));
-
+    const existing = await db.select().from(members).where(eq(members.email, email));
     if (existing.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Email already registered",
-      });
+      return res.status(400).json({ success: false, message: "Email already registered" });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
@@ -61,18 +51,19 @@ router.post("/register", async (req, res) => {
       is_verified: false,
     });
 
-    await sendVerificationEmail(email, verification_token);
+    // Send verification email asynchronously (non-blocking)
+    sendVerificationEmail(email, verification_token).catch(err => {
+      console.error("❌ Failed to send verification email (background):", err);
+    });
 
+    // Immediate response
     res.status(201).json({
       success: true,
-      message: "Registration successful. Please verify your email.",
+      message: "✅ Registration successful! Check your email to verify your account.",
     });
   } catch (error) {
     console.error("❌ Registration failed:", error);
-    res.status(500).json({
-      success: false,
-      message: "Registration failed",
-    });
+    res.status(500).json({ success: false, message: "Registration failed" });
   }
 });
 
@@ -83,49 +74,35 @@ router.post("/register", async (req, res) => {
 router.get("/verify", async (req, res) => {
   try {
     const token = req.query.token;
+    if (!token) return res.status(400).json({ success: false, message: "Verification token missing" });
 
-    if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: "Verification token missing",
-      });
-    }
+    const [member] = await db.select().from(members).where(eq(members.verification_token, token));
+    if (!member) return res.status(400).json({ success: false, message: "Invalid or expired verification token" });
 
-    const [member] = await db
-      .select()
-      .from(members)
-      .where(eq(members.verification_token, token));
+    // Mark user as verified
+    await db.update(members).set({ is_verified: true, verification_token: null }).where(eq(members.id, member.id));
 
-    if (!member) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or expired verification token",
-      });
-    }
+    // Send welcome email asynchronously
+    sendWelcomeEmail(member.email).catch(err => {
+      console.error("❌ Failed to send welcome email (background):", err);
+    });
 
-    await db
-      .update(members)
-      .set({ is_verified: true, verification_token: null })
-      .where(eq(members.id, member.id));
-
-    await sendWelcomeEmail(member.email);
-
+    // Generate JWT
     const jwt = signJwt({ id: member.id, email: member.email });
 
+    // Set auth cookie
     res.cookie("token", jwt, {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      secure: process.env.NODE_ENV === "production", // must be true for sameSite: none
-      maxAge: 1000 * 60 * 60 * 24 * 7,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     });
 
+    // Redirect to frontend dashboard
     return res.redirect(`${FRONTEND_URL}/dashboard?verified=true`);
   } catch (error) {
-    console.error("Verification error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Verification failed",
-    });
+    console.error("❌ Verification error:", error);
+    res.status(500).json({ success: false, message: "Verification failed" });
   }
 });
 
@@ -138,23 +115,13 @@ router.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
     const [user] = await db.select().from(members).where(eq(members.email, email));
-
-    if (!user) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
-    }
-
-    if (!user.is_verified) {
-      return res.status(403).json({ success: false, message: "Please verify your email first" });
-    }
+    if (!user) return res.status(401).json({ success: false, message: "Invalid credentials" });
+    if (!user.is_verified) return res.status(403).json({ success: false, message: "Please verify your email first" });
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
-
-    if (!validPassword) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
-    }
+    if (!validPassword) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
     const token = signJwt({ id: user.id, email: user.email });
-
     res.cookie("token", token, {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
@@ -186,12 +153,9 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
       where: eq(enrolled_fees.member_id, user.id),
     });
 
-    res.json({
-      success: true,
-      data: { ...member, is_member: !!membership },
-    });
+    res.json({ success: true, data: { ...member, is_member: !!membership } });
   } catch (error) {
-    console.error("Failed to fetch /me:", error);
+    console.error("❌ Failed to fetch /me:", error);
     res.status(500).json({ success: false, message: "Failed to fetch user info" });
   }
 });
