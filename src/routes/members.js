@@ -174,4 +174,26 @@ router.post("/logout", (req, res) => {
   res.json({ success: true, message: "Logged out successfully" });
 });
 
+router.get("/test-email", async (req, res) => {
+  try {
+    const TEST_EMAIL = "tobbywomiloju@gmail.com"; // 🔹 replace with your Gmail
+    const TEST_TOKEN = "testtoken123";
+
+    // Send verification email
+    const verificationPromise = sendVerificationEmail(TEST_EMAIL, TEST_TOKEN);
+
+    // Send welcome email
+    const welcomePromise = sendWelcomeEmail(TEST_EMAIL);
+
+    // Wait for both to be queued
+    await Promise.allSettled([verificationPromise, welcomePromise]);
+
+    res.json({ success: true, message: "Test emails sent (check inbox)" });
+  } catch (err) {
+    console.error("❌ Test email failed:", err);
+    res.status(500).json({ success: false, message: "Test email failed" });
+  }
+});
+
+
 module.exports = router;
