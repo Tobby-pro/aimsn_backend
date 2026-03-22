@@ -11,7 +11,7 @@ const crypto = require("crypto");
 
 const router = Router();
 
-// Apply authentication and verification for all routes except webhook
+// Apply authentication and verification for all routes except webhookss
 router.use((req, res, next) => {
   if (req.path === "/webhook") return next();
   requireAuth(req, res, () => requireVerified(req, res, next));
