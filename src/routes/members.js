@@ -32,12 +32,44 @@ router.post("/register", async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: "Email and password required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email and password required" });
     }
 
-    const existing = await db.select().from(members).where(eq(members.email, email));
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid email format" });
+    }
+
+    // Password strength
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters long",
+      });
+    }
+
+    const strongPassword = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+]{8,}$/;
+    if (!strongPassword.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must contain letters and numbers for strength",
+      });
+    }
+
+    const existing = await db
+      .select()
+      .from(members)
+      .where(eq(members.email, email));
     if (existing.length > 0) {
-      return res.status(400).json({ success: false, message: "Email already registered" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email already registered" });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
@@ -50,12 +82,12 @@ router.post("/register", async (req, res) => {
       is_verified: false,
     });
 
-    // ✅ NON-BLOCKING (NO .catch)
     sendVerificationEmail(email, verification_token);
 
     res.status(201).json({
       success: true,
-      message: "✅ Registration successful! Check your email to verify your account.",
+      message:
+        "✅ Registration successful! Check your email to verify your account.",
     });
   } catch (error) {
     console.error("❌ Registration failed:", error);
