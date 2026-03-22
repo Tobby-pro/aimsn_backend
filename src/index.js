@@ -9,7 +9,7 @@ const cookieParser = require("cookie-parser");
 // ---------------------------
 const membersRouter = require("./routes/members");
 const paymentsRouter = require("./routes/payments");
-const coursesRouter = require("./routes/courses"); // NEW: for enrolled courses
+const coursesRouter = require("./routes/courses"); // for enrolled courses
 
 dotenv.config();
 
@@ -23,12 +23,25 @@ app.use(express.json()); // Parse JSON bodies
 app.use(cookieParser());
 
 // ---------------------------
-// ✅ CORS Setup
+// ✅ CORS Setup for Dev + Production
 // ---------------------------
+const allowedOrigins = [
+  "http://localhost:5173",       // dev
+  "https://www.aimsn.com.ng",    // production
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173", // frontend URL
-    credentials: true, // allow cookies
+    origin: function (origin, callback) {
+      // allow requests with no origin like mobile apps, Postman, or curl
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true, // allow cookies to be sent
   })
 );
 
@@ -45,7 +58,7 @@ app.use((req, res, next) => {
 // ---------------------------
 app.use("/api/members", membersRouter);
 app.use("/api/payments", paymentsRouter);
-app.use("/api/courses", coursesRouter); // NEW
+app.use("/api/courses", coursesRouter);
 
 // ---------------------------
 // ✅ Test Route for POST Debugging
@@ -68,3 +81,15 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
+
+/*
+💡 Notes for production cookies:
+If you are sending cookies with 'withCredentials: true' from your frontend,
+make sure you set cookies like this in your auth routes:
+
+res.cookie("session", token, {
+  httpOnly: true,
+  secure: true,      // required on HTTPS in production
+  sameSite: "none",  // allows cross-site cookies
+});
+*/

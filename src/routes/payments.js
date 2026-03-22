@@ -11,7 +11,7 @@ const crypto = require("crypto");
 
 const router = Router();
 
-// Apply authentication and verification for all routes except webhookss
+// Apply authentication and verification for all routes except webhooks
 router.use((req, res, next) => {
   if (req.path === "/webhook") return next();
   requireAuth(req, res, () => requireVerified(req, res, next));
@@ -36,6 +36,7 @@ router.post("/initiate", async (req, res) => {
       status: "pending",
     });
 
+    // Return public key from env (frontend reads it)
     return res.json({
       reference,
       email: user.email,

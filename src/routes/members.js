@@ -18,6 +18,12 @@ router.use((req, res, next) => {
   next();
 });
 
+// Determine frontend URL based on environment
+const FRONTEND_URL =
+  process.env.NODE_ENV === "production"
+    ? "https://www.aimsn.com.ng"
+    : "http://localhost:5173";
+
 /**
  * REGISTER
  * POST /api/members/register
@@ -55,7 +61,6 @@ router.post("/register", async (req, res) => {
       is_verified: false,
     });
 
-    // Send verification email
     await sendVerificationEmail(email, verification_token);
 
     res.status(201).json({
@@ -98,34 +103,23 @@ router.get("/verify", async (req, res) => {
       });
     }
 
-    // Mark as verified
     await db
       .update(members)
-      .set({
-        is_verified: true,
-        verification_token: null,
-      })
+      .set({ is_verified: true, verification_token: null })
       .where(eq(members.id, member.id));
 
-    // Send welcome email
     await sendWelcomeEmail(member.email);
 
-    // Generate JWT
-    const jwt = signJwt({
-      id: member.id,
-      email: member.email,
-    });
+    const jwt = signJwt({ id: member.id, email: member.email });
 
-    // Set auth cookie
     res.cookie("token", jwt, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production", // must be true for sameSite: none
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    // Redirect to frontend
-    return res.redirect("http://localhost:5173/dashboard?verified=true");
+    return res.redirect(`${FRONTEND_URL}/dashboard?verified=true`);
   } catch (error) {
     console.error("Verification error:", error);
     res.status(500).json({
@@ -143,56 +137,35 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const [user] = await db
-      .select()
-      .from(members)
-      .where(eq(members.email, email));
+    const [user] = await db.select().from(members).where(eq(members.email, email));
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
     if (!user.is_verified) {
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your email first",
-      });
+      return res.status(403).json({ success: false, message: "Please verify your email first" });
     }
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!validPassword) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    const token = signJwt({
-      id: user.id,
-      email: user.email,
-    });
+    const token = signJwt({ id: user.id, email: user.email });
 
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    res.json({
-      success: true,
-      message: "Login successful",
-    });
+    res.json({ success: true, message: "Login successful" });
   } catch (error) {
     console.error("❌ Login failed:", error);
-    res.status(500).json({
-      success: false,
-      message: "Login failed",
-    });
+    res.status(500).json({ success: false, message: "Login failed" });
   }
 });
 
@@ -205,10 +178,7 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
     const user = req.user;
 
     const [member] = await db
-      .select({
-        id: members.id,
-        email: members.email,
-      })
+      .select({ id: members.id, email: members.email })
       .from(members)
       .where(eq(members.id, user.id));
 
@@ -218,17 +188,11 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        ...member,
-        is_member: !!membership,
-      },
+      data: { ...member, is_member: !!membership },
     });
   } catch (error) {
     console.error("Failed to fetch /me:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch user info",
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch user info" });
   }
 });
 
@@ -239,13 +203,11 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
 router.post("/logout", (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
   });
 
-  res.json({
-    success: true,
-    message: "Logged out successfully",
-  });
+  res.json({ success: true, message: "Logged out successfully" });
 });
 
 module.exports = router;
