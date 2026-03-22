@@ -26,7 +26,6 @@ const FRONTEND_URL =
 
 /**
  * REGISTER
- * POST /api/members/register
  */
 router.post("/register", async (req, res) => {
   try {
@@ -51,12 +50,9 @@ router.post("/register", async (req, res) => {
       is_verified: false,
     });
 
-    // Send verification email asynchronously (non-blocking)
-    sendVerificationEmail(email, verification_token).catch(err => {
-      console.error("❌ Failed to send verification email (background):", err);
-    });
+    // ✅ NON-BLOCKING (NO .catch)
+    sendVerificationEmail(email, verification_token);
 
-    // Immediate response
     res.status(201).json({
       success: true,
       message: "✅ Registration successful! Check your email to verify your account.",
@@ -69,7 +65,6 @@ router.post("/register", async (req, res) => {
 
 /**
  * VERIFY EMAIL
- * GET /api/members/verify?token=...
  */
 router.get("/verify", async (req, res) => {
   try {
@@ -79,26 +74,23 @@ router.get("/verify", async (req, res) => {
     const [member] = await db.select().from(members).where(eq(members.verification_token, token));
     if (!member) return res.status(400).json({ success: false, message: "Invalid or expired verification token" });
 
-    // Mark user as verified
-    await db.update(members).set({ is_verified: true, verification_token: null }).where(eq(members.id, member.id));
+    await db.update(members).set({
+      is_verified: true,
+      verification_token: null,
+    }).where(eq(members.id, member.id));
 
-    // Send welcome email asynchronously
-    sendWelcomeEmail(member.email).catch(err => {
-      console.error("❌ Failed to send welcome email (background):", err);
-    });
+    // ✅ NON-BLOCKING (NO .catch)
+    sendWelcomeEmail(member.email);
 
-    // Generate JWT
     const jwt = signJwt({ id: member.id, email: member.email });
 
-    // Set auth cookie
     res.cookie("token", jwt, {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    // Redirect to frontend dashboard
     return res.redirect(`${FRONTEND_URL}/dashboard?verified=true`);
   } catch (error) {
     console.error("❌ Verification error:", error);
@@ -108,7 +100,6 @@ router.get("/verify", async (req, res) => {
 
 /**
  * LOGIN
- * POST /api/members/login
  */
 router.post("/login", async (req, res) => {
   try {
@@ -122,6 +113,7 @@ router.post("/login", async (req, res) => {
     if (!validPassword) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
     const token = signJwt({ id: user.id, email: user.email });
+
     res.cookie("token", token, {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
@@ -138,7 +130,6 @@ router.post("/login", async (req, res) => {
 
 /**
  * CURRENT USER
- * GET /api/members/me
  */
 router.get("/me", requireAuth, requireVerified, async (req, res) => {
   try {
@@ -162,7 +153,6 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
 
 /**
  * LOGOUT
- * POST /api/members/logout
  */
 router.post("/logout", (req, res) => {
   res.clearCookie("token", {
@@ -174,19 +164,16 @@ router.post("/logout", (req, res) => {
   res.json({ success: true, message: "Logged out successfully" });
 });
 
+/**
+ * TEMP TEST ROUTE
+ */
 router.get("/test-email", async (req, res) => {
   try {
-    const TEST_EMAIL = "tobbywomiloju@gmail.com"; // 🔹 replace with your Gmail
+    const TEST_EMAIL = "tobbywomiloju@gmail.com";
     const TEST_TOKEN = "testtoken123";
 
-    // Send verification email
-    const verificationPromise = sendVerificationEmail(TEST_EMAIL, TEST_TOKEN);
-
-    // Send welcome email
-    const welcomePromise = sendWelcomeEmail(TEST_EMAIL);
-
-    // Wait for both to be queued
-    await Promise.allSettled([verificationPromise, welcomePromise]);
+    sendVerificationEmail(TEST_EMAIL, TEST_TOKEN);
+    sendWelcomeEmail(TEST_EMAIL);
 
     res.json({ success: true, message: "Test emails sent (check inbox)" });
   } catch (err) {
@@ -194,6 +181,5 @@ router.get("/test-email", async (req, res) => {
     res.status(500).json({ success: false, message: "Test email failed" });
   }
 });
-
 
 module.exports = router;
