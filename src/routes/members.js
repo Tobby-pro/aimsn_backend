@@ -79,7 +79,6 @@ router.get("/verify", async (req, res) => {
       verification_token: null,
     }).where(eq(members.id, member.id));
 
-    // ✅ NON-BLOCKING (NO .catch)
     sendWelcomeEmail(member.email);
 
     const jwt = signJwt({ id: member.id, email: member.email });
@@ -91,7 +90,8 @@ router.get("/verify", async (req, res) => {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    return res.redirect(`${FRONTEND_URL}/dashboard?verified=true`);
+    // 🚨 RETURN JSON INSTEAD OF REDIRECT
+    return res.json({ success: true, message: "Email verified successfully" });
   } catch (error) {
     console.error("❌ Verification error:", error);
     res.status(500).json({ success: false, message: "Verification failed" });

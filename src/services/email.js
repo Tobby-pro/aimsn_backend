@@ -5,16 +5,17 @@ if (!process.env.RESEND_API_KEY) {
   throw new Error("❌ RESEND_API_KEY not set");
 }
 
-if (!process.env.FRONTEND_URL) {
-  throw new Error("❌ FRONTEND_URL not set");
-}
+// Determine frontend URL dynamically
+const FRONTEND_VERIFY_URL =
+  process.env.NODE_ENV === "production"
+    ? "https://www.aimsn.com.ng/verify"
+    : "http://localhost:5173/verify";
 
+// Initialize Resend client
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL =
-  process.env.EMAIL_FROM || "AIMS Nigeria <onboarding@resend.dev>";
-
-const FRONTEND_URL = process.env.FRONTEND_URL;
+// Corrected FROM_EMAIL — must follow proper format
+const FROM_EMAIL = process.env.EMAIL_FROM || "AIMS Nigeria <noreply@aimsn.com.ng>";
 
 /**
  * Fire-and-forget wrapper (NON-BLOCKING)
@@ -29,17 +30,18 @@ const safeSend = async (fn) => {
  * Send verification email (NON-BLOCKING)
  */
 const sendVerificationEmail = (to, token) => {
-  const link = `${FRONTEND_URL}/verify?token=${token}`;
+  const link = `${FRONTEND_VERIFY_URL}?token=${token}`; // 🚀 updated
 
   safeSend(async () => {
     const res = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: FROM_EMAIL, // no extra quotes
       to,
       subject: "Verify Your Email",
       html: `
         <h2>Welcome to AIMS Nigeria 👋</h2>
-        <p>Please verify your email:</p>
-        <a href="${link}">Verify Email</a>
+        <p>Thank you for signing up! Please verify your email by clicking the link below:</p>
+        <a href="${link}" style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:5px;">Verify Email</a>
+        <p>If you did not sign up, you can ignore this email.</p>
       `,
     });
 
@@ -53,13 +55,13 @@ const sendVerificationEmail = (to, token) => {
 const sendWelcomeEmail = (to) => {
   safeSend(async () => {
     const res = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: FROM_EMAIL, // no extra quotes
       to,
       subject: "Welcome to AIMS Nigeria 🎉",
       html: `
         <h2>Welcome to AIMS Nigeria 👋</h2>
         <p>Your account has been successfully verified.</p>
-        <p>You now have full access.</p>
+        <p>You now have full access to your dashboard.</p>
       `,
     });
 
