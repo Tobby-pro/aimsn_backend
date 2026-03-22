@@ -19,7 +19,6 @@ router.use((req, res, next) => {
 
 /**
  * INITIATE PAYMENT
- * POST /api/payments/initiate
  */
 router.post("/initiate", async (req, res) => {
   try {
@@ -29,7 +28,6 @@ router.post("/initiate", async (req, res) => {
 
     const reference = `aimsn_${Date.now()}_${user.id}`;
 
-    // Insert pending payment
     await db.insert(payments).values({
       member_id: user.id,
       fee_type,
@@ -48,14 +46,13 @@ router.post("/initiate", async (req, res) => {
     console.error("Payment initiation error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to initiate membership activation fee payment",
+      message: "Failed to initiate payment",
     });
   }
 });
 
 /**
  * VERIFY PAYMENT
- * POST /api/payments/verify
  */
 router.post("/verify", async (req, res) => {
   try {
@@ -63,52 +60,29 @@ router.post("/verify", async (req, res) => {
     const user = req.user;
 
     if (!reference) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment reference is required",
-      });
+      return res.status(400).json({ success: false, message: "Reference required" });
     }
 
-    const [payment] = await db
-      .select()
-      .from(payments)
-      .where(eq(payments.reference, reference));
+    const [payment] = await db.select().from(payments).where(eq(payments.reference, reference));
 
     if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: "Payment record not found",
-      });
+      return res.status(404).json({ success: false, message: "Payment not found" });
     }
 
     if (payment.status === "success") {
-      return res.json({
-        success: true,
-        message: "Payment already verified 🎉",
-      });
+      return res.json({ success: true, message: "Already verified 🎉" });
     }
 
-    // Verify with Paystack API
     const { data } = await axios.get(
       `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }
     );
 
     const transaction = data.data;
 
     if (!data.status || transaction.status !== "success") {
-      await db.update(payments)
-        .set({ status: "failed" })
-        .where(eq(payments.reference, reference));
-
-      return res.status(400).json({
-        success: false,
-        message: "Payment verification failed ❌",
-      });
+      await db.update(payments).set({ status: "failed" }).where(eq(payments.reference, reference));
+      return res.status(400).json({ success: false, message: "Verification failed ❌" });
     }
 
     const fee_type = payment.fee_type;
@@ -116,99 +90,57 @@ router.post("/verify", async (req, res) => {
     const [existingEnrollment] = await db
       .select()
       .from(enrolled_fees)
-      .where(
-        and(
-          eq(enrolled_fees.member_id, user.id),
-          eq(enrolled_fees.fee_type, fee_type)
-        )
-      );
+      .where(and(eq(enrolled_fees.member_id, user.id), eq(enrolled_fees.fee_type, fee_type)));
 
     if (!existingEnrollment) {
-      await db.insert(enrolled_fees).values({
-        member_id: user.id,
-        fee_type,
-      });
+      await db.insert(enrolled_fees).values({ member_id: user.id, fee_type });
     }
 
-    await db.update(payments)
-      .set({ status: "success" })
-      .where(eq(payments.reference, reference));
+    await db.update(payments).set({ status: "success" }).where(eq(payments.reference, reference));
 
-    return res.json({
-      success: true,
-      message: "Membership activation fee verified successfully 🎉",
-    });
+    return res.json({ success: true, message: "Payment verified successfully 🎉" });
   } catch (err) {
     console.error("Payment verification error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Verification failed ❌",
-    });
+    return res.status(500).json({ success: false, message: "Verification failed ❌" });
   }
 });
 
 /**
  * PAYSTACK WEBHOOK
- * POST /api/payments/webhook
  */
 router.post("/webhook", async (req, res) => {
   try {
     const paystackSignature = req.headers["x-paystack-signature"];
     const secret = process.env.PAYSTACK_SECRET_KEY || "";
 
-    const hash = crypto
-      .createHmac("sha512", secret)
-      .update(JSON.stringify(req.body))
-      .digest("hex");
+    const hash = crypto.createHmac("sha512", secret).update(JSON.stringify(req.body)).digest("hex");
 
     if (hash !== paystackSignature) {
-      console.warn("⚠️ Invalid Paystack webhook signature");
+      console.warn("⚠️ Invalid webhook signature");
       return res.status(400).send("Invalid signature");
     }
 
     const event = req.body;
 
-    if (event.event !== "charge.success") {
-      return res.status(200).send("Event ignored");
-    }
+    if (event.event !== "charge.success") return res.status(200).send("Event ignored");
 
     const reference = event.data.reference;
     const fee_type = (event.data.metadata && event.data.metadata.fee_type) || "membership_registration";
 
-    const [payment] = await db
-      .select()
-      .from(payments)
-      .where(eq(payments.reference, reference));
+    const [payment] = await db.select().from(payments).where(eq(payments.reference, reference));
 
-    if (!payment) {
-      console.warn("⚠️ Payment not found for reference:", reference);
-      return res.status(404).send("Payment not found");
-    }
-
-    if (payment.status === "success") {
-      return res.status(200).send("Payment already processed");
-    }
+    if (!payment) return res.status(404).send("Payment not found");
 
     const [existingEnrollment] = await db
       .select()
       .from(enrolled_fees)
-      .where(
-        and(
-          eq(enrolled_fees.member_id, payment.member_id),
-          eq(enrolled_fees.fee_type, fee_type)
-        )
-      );
+      .where(and(eq(enrolled_fees.member_id, payment.member_id), eq(enrolled_fees.fee_type, fee_type)));
 
     if (!existingEnrollment) {
-      await db.insert(enrolled_fees).values({
-        member_id: payment.member_id,
-        fee_type,
-      });
+      await db.insert(enrolled_fees).values({ member_id: payment.member_id, fee_type });
     }
 
-    await db.update(payments)
-      .set({ status: "success" })
-      .where(eq(payments.reference, reference));
+    await db.update(payments).set({ status: "success" }).where(eq(payments.reference, reference));
 
     console.log(`✅ Webhook processed for ${reference}`);
     res.status(200).send("Webhook received");
