@@ -72,7 +72,8 @@ router.post("/register", async (req, res) => {
         .json({ success: false, message: "Email already registered" });
     }
 
-    const password_hash = await bcrypt.hash(password, 10);
+    // ✅ Reduced bcrypt cost for faster hashing
+    const password_hash = await bcrypt.hash(password, 9);
     const verification_token = generateToken();
 
     await db.insert(members).values({
@@ -82,8 +83,12 @@ router.post("/register", async (req, res) => {
       is_verified: false,
     });
 
-    sendVerificationEmail(email, verification_token);
+    // ✅ Send email asynchronously (fire-and-forget)
+    sendVerificationEmail(email, verification_token).catch(err =>
+      console.error("❌ Verification email failed:", err)
+    );
 
+    // Respond instantly to user
     res.status(201).json({
       success: true,
       message:
@@ -111,7 +116,10 @@ router.get("/verify", async (req, res) => {
       verification_token: null,
     }).where(eq(members.id, member.id));
 
-    sendWelcomeEmail(member.email);
+    // Send welcome email async as well
+    sendWelcomeEmail(member.email).catch(err =>
+      console.error("❌ Welcome email failed:", err)
+    );
 
     const jwt = signJwt({ id: member.id, email: member.email });
 
@@ -122,7 +130,7 @@ router.get("/verify", async (req, res) => {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    // 🚨 RETURN JSON INSTEAD OF REDIRECT
+    // Return JSON instead of redirect
     return res.json({ success: true, message: "Email verified successfully" });
   } catch (error) {
     console.error("❌ Verification error:", error);
@@ -204,8 +212,12 @@ router.get("/test-email", async (req, res) => {
     const TEST_EMAIL = "tobbywomiloju@gmail.com";
     const TEST_TOKEN = "testtoken123";
 
-    sendVerificationEmail(TEST_EMAIL, TEST_TOKEN);
-    sendWelcomeEmail(TEST_EMAIL);
+    sendVerificationEmail(TEST_EMAIL, TEST_TOKEN).catch(err =>
+      console.error("❌ Test verification email failed:", err)
+    );
+    sendWelcomeEmail(TEST_EMAIL).catch(err =>
+      console.error("❌ Test welcome email failed:", err)
+    );
 
     res.json({ success: true, message: "Test emails sent (check inbox)" });
   } catch (err) {
