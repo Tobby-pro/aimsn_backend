@@ -83,10 +83,14 @@ router.post("/register", async (req, res) => {
       is_verified: false,
     });
 
-    // ✅ Send email asynchronously (fire-and-forget)
-    sendVerificationEmail(email, verification_token).catch(err =>
-      console.error("❌ Verification email failed:", err)
-    );
+    // ✅ Fire-and-forget email using IIFE
+    (async () => {
+      try {
+        await sendVerificationEmail(email, verification_token);
+      } catch (err) {
+        console.error("❌ Verification email failed (ignored):", err);
+      }
+    })();
 
     // Respond instantly to user
     res.status(201).json({
@@ -116,10 +120,14 @@ router.get("/verify", async (req, res) => {
       verification_token: null,
     }).where(eq(members.id, member.id));
 
-    // Send welcome email async as well
-    sendWelcomeEmail(member.email).catch(err =>
-      console.error("❌ Welcome email failed:", err)
-    );
+    // ✅ Fire-and-forget welcome email using IIFE
+    (async () => {
+      try {
+        await sendWelcomeEmail(member.email);
+      } catch (err) {
+        console.error("❌ Welcome email failed (ignored):", err);
+      }
+    })();
 
     const jwt = signJwt({ id: member.id, email: member.email });
 
@@ -130,7 +138,6 @@ router.get("/verify", async (req, res) => {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    // Return JSON instead of redirect
     return res.json({ success: true, message: "Email verified successfully" });
   } catch (error) {
     console.error("❌ Verification error:", error);
@@ -212,12 +219,15 @@ router.get("/test-email", async (req, res) => {
     const TEST_EMAIL = "tobbywomiloju@gmail.com";
     const TEST_TOKEN = "testtoken123";
 
-    sendVerificationEmail(TEST_EMAIL, TEST_TOKEN).catch(err =>
-      console.error("❌ Test verification email failed:", err)
-    );
-    sendWelcomeEmail(TEST_EMAIL).catch(err =>
-      console.error("❌ Test welcome email failed:", err)
-    );
+    (async () => {
+      try { await sendVerificationEmail(TEST_EMAIL, TEST_TOKEN); } 
+      catch (err) { console.error("❌ Test verification email failed (ignored):", err); }
+    })();
+
+    (async () => {
+      try { await sendWelcomeEmail(TEST_EMAIL); } 
+      catch (err) { console.error("❌ Test welcome email failed (ignored):", err); }
+    })();
 
     res.json({ success: true, message: "Test emails sent (check inbox)" });
   } catch (err) {
