@@ -22,7 +22,19 @@ router.use((req, res, next) => {
  */
 router.post("/initiate", async (req, res) => {
   try {
+    console.log("🔥 INITIATE ROUTE HIT");
+
     const user = req.user;
+    console.log("👤 USER:", user);
+
+    if (!user) {
+      console.log("❌ No user found in request");
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated",
+      });
+    }
+
     const fee_type = "membership_registration";
     const amount = FEES[fee_type];
 
@@ -36,22 +48,27 @@ router.post("/initiate", async (req, res) => {
       status: "pending",
     });
 
-    // Return public key from env (frontend reads it)
-    return res.json({
+    const response = {
       reference,
       email: user.email,
       amount,
       publicKey: process.env.PAYSTACK_PUBLIC_KEY,
-    });
+    };
+
+    // 🔥 THIS IS YOUR DEBUG LOG
+    console.log("✅ INITIATE RESPONSE:", response);
+
+    return res.json(response);
   } catch (err) {
-    console.error("Payment initiation error:", err);
+    console.error("❌ Payment initiation error:", err);
+
     return res.status(500).json({
       success: false,
       message: "Failed to initiate payment",
+      error: err.message,
     });
   }
 });
-
 /**
  * VERIFY PAYMENT
  */
