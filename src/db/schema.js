@@ -19,6 +19,10 @@ const members = pgTable(
     email: varchar("email", { length: 255 }).notNull().unique(),
     password_hash: text("password_hash").notNull(),
     is_verified: boolean("is_verified").notNull().default(false),
+
+    // ✅ NEW: ADMIN FLAG
+    is_admin: boolean("is_admin").notNull().default(false),
+
     verification_token: text("verification_token"),
     verification_token_expires_at: timestamp("verification_token_expires_at"),
     created_at: timestamp("created_at").notNull().defaultNow(),

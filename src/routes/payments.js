@@ -128,43 +128,37 @@ router.post("/verify", async (req, res) => {
  */
 router.post("/webhook", async (req, res) => {
   try {
-    const paystackSignature = req.headers["x-paystack-signature"];
-    const secret = process.env.PAYSTACK_SECRET_KEY || "";
+    const secret = process.env.PAYSTACK_SECRET_KEY;
 
-    const hash = crypto.createHmac("sha512", secret).update(JSON.stringify(req.body)).digest("hex");
+    const hash = crypto
+      .createHmac("sha512", secret)
+      .update(req.body) // ✅ RAW BODY
+      .digest("hex");
 
-    if (hash !== paystackSignature) {
+    if (hash !== req.headers["x-paystack-signature"]) {
       console.warn("⚠️ Invalid webhook signature");
       return res.status(400).send("Invalid signature");
     }
 
-    const event = req.body;
+    const event = JSON.parse(req.body.toString());
 
-    if (event.event !== "charge.success") return res.status(200).send("Event ignored");
-
-    const reference = event.data.reference;
-    const fee_type = (event.data.metadata && event.data.metadata.fee_type) || "membership_registration";
-
-    const [payment] = await db.select().from(payments).where(eq(payments.reference, reference));
-
-    if (!payment) return res.status(404).send("Payment not found");
-
-    const [existingEnrollment] = await db
-      .select()
-      .from(enrolled_fees)
-      .where(and(eq(enrolled_fees.member_id, payment.member_id), eq(enrolled_fees.fee_type, fee_type)));
-
-    if (!existingEnrollment) {
-      await db.insert(enrolled_fees).values({ member_id: payment.member_id, fee_type });
+    if (event.event !== "charge.success") {
+      return res.sendStatus(200);
     }
 
-    await db.update(payments).set({ status: "success" }).where(eq(payments.reference, reference));
+    const reference = event.data.reference;
+
+    await db
+      .update(payments)
+      .set({ status: "success" })
+      .where(eq(payments.reference, reference));
 
     console.log(`✅ Webhook processed for ${reference}`);
-    res.status(200).send("Webhook received");
+
+    res.sendStatus(200);
   } catch (err) {
-    console.error("Webhook processing error:", err);
-    res.status(500).send("Server error");
+    console.error("Webhook error:", err);
+    res.sendStatus(500);
   }
 });
 

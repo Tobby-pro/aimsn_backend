@@ -1,4 +1,4 @@
-// middleware/auth/auth.js
+// middleware/auth.js
 const { verifyJwt } = require("../services/jwt");
 
 const requireAuth = (req, res, next) => {
