@@ -10,11 +10,20 @@ const cookieParser = require("cookie-parser");
 const membersRouter = require("./routes/members");
 const paymentsRouter = require("./routes/payments");
 const coursesRouter = require("./routes/courses"); // for enrolled courses
+const adminRouter = require("./routes/admin"); // ✅ NEW ADMIN ROUTE
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ---------------------------
+// ⚠️ IMPORTANT: RAW BODY FOR WEBHOOK (MUST COME BEFORE express.json)
+// ---------------------------
+app.use(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" })
+);
 
 // ---------------------------
 // ✅ Middlewares
@@ -33,7 +42,6 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // allow requests with no origin like mobile apps, Postman, or curl
       if (!origin) return callback(null, true);
       if (allowedOrigins.indexOf(origin) === -1) {
         const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
@@ -41,7 +49,7 @@ app.use(
       }
       return callback(null, true);
     },
-    credentials: true, // allow cookies to be sent
+    credentials: true,
   })
 );
 
@@ -59,6 +67,7 @@ app.use((req, res, next) => {
 app.use("/api/members", membersRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/courses", coursesRouter);
+app.use("/api/admin", adminRouter); // ✅ Admin route wired
 
 // ---------------------------
 // ✅ Test Route for POST Debugging
@@ -89,7 +98,7 @@ make sure you set cookies like this in your auth routes:
 
 res.cookie("session", token, {
   httpOnly: true,
-  secure: true,      // required on HTTPS in production
-  sameSite: "none",  // allows cross-site cookies
+  secure: true,
+  sameSite: "none",
 });
 */

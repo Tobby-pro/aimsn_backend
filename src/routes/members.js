@@ -161,12 +161,16 @@ router.post("/login", async (req, res) => {
 
     const token = signJwt({ id: user.id, email: user.email });
 
+    // ✅ Set HTTP-only cookie
     res.cookie("token", token, {
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 1000 * 60 * 60 * 24 * 7,
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     });
+
+    // 🔹 DEBUG: log login attempt and admin flag
+    console.log("🔹 Login attempt:", { email: user.email, is_admin: user.is_admin });
 
     res.json({ success: true, message: "Login successful" });
   } catch (error) {
@@ -174,7 +178,6 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ success: false, message: "Login failed" });
   }
 });
-
 /**
  * CURRENT USER
  */
@@ -182,8 +185,11 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
   try {
     const user = req.user;
 
+    // 🔹 DEBUG: log the authenticated user
+    console.log("🔹 /me called, req.user:", user);
+
     const [member] = await db
-      .select({ id: members.id, email: members.email })
+      .select({ id: members.id, email: members.email, is_admin: members.is_admin })
       .from(members)
       .where(eq(members.id, user.id));
 
@@ -197,7 +203,6 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch user info" });
   }
 });
-
 /**
  * LOGOUT
  */
