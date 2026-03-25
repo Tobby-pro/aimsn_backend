@@ -170,7 +170,7 @@ router.post("/login", async (req, res) => {
     });
 
     // 🔹 DEBUG: log login attempt and admin flag
-    console.log("🔹 Login attempt:", { email: user.email, is_admin: user.is_admin });
+    console.log("🔹 Login attempts:", { email: user.email, is_admin: user.is_admin });
 
     res.json({ success: true, message: "Login successful" });
   } catch (error) {
