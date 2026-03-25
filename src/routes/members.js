@@ -152,12 +152,24 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // 🔹 DEBUG: log every login attempt immediately
+    console.log("🔹 /login attempt:", { email });
+
     const [user] = await db.select().from(members).where(eq(members.email, email));
-    if (!user) return res.status(401).json({ success: false, message: "Invalid credentials" });
-    if (!user.is_verified) return res.status(403).json({ success: false, message: "Please verify your email first" });
+    if (!user) {
+      console.log("🔹 /login result: no user found for email", email);
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+    if (!user.is_verified) {
+      console.log("🔹 /login result: user not verified", email);
+      return res.status(403).json({ success: false, message: "Please verify your email first" });
+    }
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) return res.status(401).json({ success: false, message: "Invalid credentials" });
+    if (!validPassword) {
+      console.log("🔹 /login result: wrong password for", email);
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
 
     const token = signJwt({ id: user.id, email: user.email });
 
@@ -169,12 +181,12 @@ router.post("/login", async (req, res) => {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     });
 
-    // 🔹 DEBUG: log login attempt and admin flag
-    console.log("🔹 Login attempts:", { email: user.email, is_admin: user.is_admin });
+    // 🔹 DEBUG: log successful login and admin flag
+    console.log("🔹 /login success:", { email: user.email, is_admin: user.is_admin });
 
     res.json({ success: true, message: "Login successful" });
   } catch (error) {
-    console.error("❌ Login failed:", error);
+    console.error("❌ /login failed:", error);
     res.status(500).json({ success: false, message: "Login failed" });
   }
 });
@@ -185,7 +197,7 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
   try {
     const user = req.user;
 
-    // 🔹 DEBUG: log the authenticated user
+    // 🔹 DEBUG: log every /me call and the user object
     console.log("🔹 /me called, req.user:", user);
 
     const [member] = await db
@@ -196,6 +208,9 @@ router.get("/me", requireAuth, requireVerified, async (req, res) => {
     const membership = await db.query.enrolled_fees.findFirst({
       where: eq(enrolled_fees.member_id, user.id),
     });
+
+    // 🔹 DEBUG: log what will be returned
+    console.log("🔹 /me response data:", { ...member, is_member: !!membership });
 
     res.json({ success: true, data: { ...member, is_member: !!membership } });
   } catch (error) {
